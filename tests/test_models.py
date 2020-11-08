@@ -1,12 +1,12 @@
 import asyncio
 import functools
+from uuid import uuid4
 
+import databases
 import pytest
 import sqlalchemy
 
-import databases
 import orm
-
 from tests.settings import DATABASE_URL
 
 database = databases.Database(DATABASE_URL, force_rollback=True)
@@ -18,7 +18,7 @@ class User(orm.Model):
     __metadata__ = metadata
     __database__ = database
 
-    id = orm.Integer(primary_key=True)
+    id = orm.String(max_length=100, primary_key=True)
     name = orm.String(max_length=100)
 
 
@@ -57,7 +57,7 @@ def async_adapter(wrapped_func):
 
 def test_model_class():
     assert list(User.fields.keys()) == ["id", "name"]
-    assert isinstance(User.fields["id"], orm.Integer)
+    assert isinstance(User.fields["id"], orm.String)
     assert User.fields["id"].primary_key is True
     assert isinstance(User.fields["name"], orm.String)
     assert User.fields["name"].max_length == 100
@@ -65,9 +65,10 @@ def test_model_class():
 
 
 def test_model_pk():
-    user = User(pk=1)
-    assert user.pk == 1
-    assert user.id == 1
+    user_id = str(uuid4())
+    user = User(pk=user_id)
+    assert user.pk == user_id
+    assert user.id == user_id
 
 
 @async_adapter
@@ -76,7 +77,7 @@ async def test_model_crud():
         users = await User.objects.all()
         assert users == []
 
-        user = await User.objects.create(name="Tom")
+        user = await User.objects.create(id=str(uuid4()), name="Tom")
         users = await User.objects.all()
         assert user.name == "Tom"
         assert user.pk is not None
@@ -102,11 +103,11 @@ async def test_model_get():
         with pytest.raises(orm.NoMatch):
             await User.objects.get()
 
-        user = await User.objects.create(name="Tom")
+        user = await User.objects.create(id=str(uuid4()), name="Tom")
         lookup = await User.objects.get()
         assert lookup == user
 
-        user = await User.objects.create(name="Jane")
+        user = await User.objects.create(id=str(uuid4()), name="Jane")
         with pytest.raises(orm.MultipleMatches):
             await User.objects.get()
 
@@ -118,9 +119,9 @@ async def test_model_get():
 @async_adapter
 async def test_model_filter():
     async with database:
-        await User.objects.create(name="Tom")
-        await User.objects.create(name="Jane")
-        await User.objects.create(name="Lucy")
+        await User.objects.create(id=str(uuid4()), name="Tom")
+        await User.objects.create(id=str(uuid4()), name="Jane")
+        await User.objects.create(id=str(uuid4()), name="Lucy")
 
         user = await User.objects.get(name="Lucy")
         assert user.name == "Lucy"
@@ -160,7 +161,7 @@ async def test_model_filter():
 @async_adapter
 async def test_model_exists():
     async with database:
-        await User.objects.create(name="Tom")
+        await User.objects.create(id=str(uuid4()), name="Tom")
         assert await User.objects.filter(name="Tom").exists() is True
         assert await User.objects.filter(name="Jane").exists() is False
 
@@ -168,9 +169,9 @@ async def test_model_exists():
 @async_adapter
 async def test_model_count():
     async with database:
-        await User.objects.create(name="Tom")
-        await User.objects.create(name="Jane")
-        await User.objects.create(name="Lucy")
+        await User.objects.create(id=str(uuid4()), name="Tom")
+        await User.objects.create(id=str(uuid4()), name="Jane")
+        await User.objects.create(id=str(uuid4()), name="Lucy")
 
         assert await User.objects.count() == 3
         assert await User.objects.filter(name__icontains="T").count() == 1
@@ -179,9 +180,9 @@ async def test_model_count():
 @async_adapter
 async def test_model_limit():
     async with database:
-        await User.objects.create(name="Tom")
-        await User.objects.create(name="Jane")
-        await User.objects.create(name="Lucy")
+        await User.objects.create(id=str(uuid4()), name="Tom")
+        await User.objects.create(id=str(uuid4()), name="Jane")
+        await User.objects.create(id=str(uuid4()), name="Lucy")
 
         assert len(await User.objects.limit(2).all()) == 2
 
@@ -189,28 +190,28 @@ async def test_model_limit():
 @async_adapter
 async def test_model_limit_with_filter():
     async with database:
-        await User.objects.create(name="Tom")
-        await User.objects.create(name="Tom")
-        await User.objects.create(name="Tom")
+        await User.objects.create(id=str(uuid4()), name="Tom")
+        await User.objects.create(id=str(uuid4()), name="Tom")
+        await User.objects.create(id=str(uuid4()), name="Tom")
 
-        assert len(await User.objects.limit(2).filter(name__iexact='Tom').all()) == 2
+        assert len(await User.objects.limit(2).filter(name__iexact="Tom").all()) == 2
 
 
 @async_adapter
 async def test_offset():
     async with database:
-        await User.objects.create(name="Tom")
-        await User.objects.create(name="Jane")
+        await User.objects.create(id=str(uuid4()), name="Tom")
+        await User.objects.create(id=str(uuid4()), name="Jane")
 
         users = await User.objects.offset(1).limit(1).all()
-        assert users[0].name == 'Jane'
+        assert users[0].name == "Jane"
 
 
 @async_adapter
 async def test_model_first():
     async with database:
-        tom = await User.objects.create(name="Tom")
-        jane = await User.objects.create(name="Jane")
+        tom = await User.objects.create(id=str(uuid4()), name="Tom")
+        jane = await User.objects.create(id=str(uuid4()), name="Jane")
 
         assert await User.objects.first() == tom
         assert await User.objects.first(name="Jane") == jane
